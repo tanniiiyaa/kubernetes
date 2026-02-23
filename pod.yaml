@@ -5,7 +5,7 @@ metadata:
   labels: 
     app: my-pod
 spec:
- container:
+ containers:
    - name: nginx
      image: nginx:latest
      ports:
