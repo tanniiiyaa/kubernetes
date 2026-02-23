@@ -5,7 +5,7 @@ metatdata:
    labels:
      app: rc-web
 spec:
- replica: 3
+ replicas: 3
  selector: 
   app: webapp
  template:
@@ -13,7 +13,7 @@ spec:
     name: webapp
     labels:
      app: webapp
-  specs:
+  spec:
    containers:
     - name: nginx
       image: nginx:latest
