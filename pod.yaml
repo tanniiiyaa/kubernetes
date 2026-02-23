@@ -15,5 +15,5 @@ spec:
    - name: tomcat
      image: tomcat:latest
      ports: 
-       containerPort: 80
-       protocol: 80
+       - containerPort: 80
+         protocol: TCP
