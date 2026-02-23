@@ -1,22 +1,22 @@
-apiVersion: v1
-kind: ReplicationController
-metatdata:
-   name: rc-web
+apiVersion:  v1 
+kind:  ReplicationController 
+metadata:
+   name: rc-tapp
    labels:
-     app: rc-web
+     app: rc-tapp 
 spec:
- replicas: 3
- selector: 
-  app: webapp
- template:
-  metadata:
-    name: webapp
-    labels:
-     app: webapp
-  spec:
-   containers:
-    - name: nginx
-      image: nginx:latest
-      ports:
-       containerPort: 80
-       protocol: TCP
+  replicas: 3
+  selector:
+    #matchlabels:
+    app: tapp 
+  template:
+    metadata: 
+      name: tapp
+      labels:
+        app: tapp 
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
