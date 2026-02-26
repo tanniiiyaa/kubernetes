@@ -10,16 +10,17 @@ spec:
   - http:
       paths:
       - path: /
-        pathType: Prefix
+        pathType: Prefix   #Particularily direct that path, home
         backend:
           service:
             name: frontendsrv
             port:
               number: 80
       - path: /student
-        pathType: Prefix
+        pathType: Prefix  # /student will be the path to access the tomcat 
         backend:
           service:
             name: backendsrv
             port:
               number: 8080
+
