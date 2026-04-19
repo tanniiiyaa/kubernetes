@@ -1,0 +1,215 @@
+POD
+
+> A pod is the smallest execution unit in Kubernetes.
+> A pod encapsulates one or more applications. 
+> Pods are ephemeral by nature, if a pod (or the node it executes on) fails, Kubernetes can automatically create a new replica of that pod to continue operations.
+> Pods include one or more containers(such as Docker containers).
+
+> Pods also provide environmental dependencies, including persistent storage volumes (storage that is permanent and available to all pods in the cluster) and configuration data needed to run the container(s) within the pod.
+
+>In Docker → you run a container
+> In Kubernetes → you run a Pod (which contains container(s))
+
+POD STRUCTURE
+
+A Pod is not just a container.
+It contains:
+
+Pod
+ ├── Container(s)
+ ├── Shared Network (IP, Port)
+ └── Shared Storage (Volumes)
+
+Containers inside a Pod:
+Share same IP
+Share same localhost
+Can communicate using localhost
+
+SINGLE CONTAINER VS MULTI-CONTAINER PODS
+
+1. Single Container Pod (Most Common)
+One container per Pod
+Example: nginx, backend API
+
+2. Multi-Container Pod
+Used when containers must work together tightly
+Example:
+App container + logging sidecar
+App container + proxy container
+Pattern: Sidecar pattern
+
+HOW DOES A POD WORK?
+
+> Pods are created by workload resources called controllers, which manage rollout, replication, and health of pods in the cluster.
+
+if a node in the cluster fails, a controller detects that the pods on that node are unresponsive and creates replacement pod(s) on other nodes.
+>The three most common types of controllers are:
+
+1. Jobs: for batch-type jobs that are ephemeral, and will run a task to completion
+
+2. Deployments : for applications that are stateless and persistent, such as web servers (HPPT servers)
+
+3. StatefulSets : for applications that are both stateful and persistent such as databases
+
+> If a pod has multiple containers, they are all scheduled together on the same server in the cluster
+> Controllers use information in a pod template to create the pods, and controllers ensure that running pods match the deployment defined in the pod template, for example by creating replicas to match the number defined in the deployment.
+
+HOW DO PODS COMMUNICATE WITH EACH OTHER?
+
+> When a pod is created it is assigned its own unique IP address.
+> If there are multiple containers within the pod, they can communicate between each other simply by using localhost.
+> Communications outside of the pod is achieved by exposing a port.
+
+> Kubectl provides a number of commands that allow a user to create pods, run them by using deployments, check on status of running pods, and halt pods that are no longer needed.
+
+Either JSON (JavaScript Object Notation) or YAML (YAML Ain’t Markup Language) commands are valid for encoding commands.
+
+POD YAML FILE
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod   #unique pod name
+  labels:           #used for grouping
+    app: nginx
+spec:                  # defines how pod runs
+  containers:
+  - name: nginx              # docker image
+    image: nginx:1.14.2         
+    ports:
+    - containerPort: 80     # internal port
+
+
+ POD LIFECYCLE
+
+ Pod goes through the following phases:
+
+1. Pending
+ >> Pod is created, waiting for scheduling
+ >> Pod has been accepted by the k8s cluster
+
+2. Running
+ >> Containers are running
+
+3. Succeeded
+ >> Completed successfully
+ >> All the containers in the pod have terminated in success and will   not be restarted.
+
+4. Failed
+ >> Error Occurred
+
+5. Unknown
+>> For some reason the state of the Pod could not be obtained.
+>> Typically occurs due to the error in communication with the node where the pod should be running.
+
+POD CREATION FLOW
+
+User → API Server → Scheduler → Node → Kubelet → Container Runtime
+
+1. You are a Pod
+kubectl apply -f pod.yaml
+> request goes to the API server
+
+2. API Server
+> Validates YAML
+> Stores it in etcd (cluster db)
+>At this point, Pod existes logically but not running yet
+
+3. Scheduler
+> It decides which node should run this Pod?
+>It checks CPU/Memory availability, node health, taints and tolerations, affinity rules
+> after decision, assigns Pod to a Node
+
+4. Kubectl (on that Node)
+> Kubectl sees, a pod is assigned to me then it pulls container image, creates container and starts the container
+
+5. Container Runtime
+> Actually runs teh container
+
+SCENARIO
+
+1. Pod is stuck in Pending
+>> Means Scheduler couldnt assign a node
+>> Possible causes could be - NO Resources, Node Taints, Wrong node selector
+>> Debug -- kubectl describe pod <pod-name>  (looks for even section)
+
+POD NETWORKING
+
+> every pod gets a unique IP
+> container shares same IP
+
+COMMUNICATION TYPES
+
+1. Pod ---> Pod  (same cluster)
+> Direct communicatioon
+> Not NAT
+> Pod A → Pod B (using IP)
+
+2. Container --> Container (same Pod)
+> localhost communication
+> because they share network namespace
+
+SCENARIO
+
+pod cannot reach another Pod
+> possible issues : network policy blocking, wrong IP, Service not used
+> debug : kubectl exec -it <pod> -- ping <ip>
+
+App not accessible externally
+> Reason : Pod is not exposed outside cluster
+> sol : create service
+
+POD STORAGE
+
+> container storage is Ephemeral (temporary)
+> If Pod dies --> data is lost
+> sol : Volumes
+> Volume provides persistent storage and shared storage between containers.
+
+> Types
+1. PVC -- Persistent Storage ( Production)
+2. hostPath -- Node storage
+3. emptyDir -- temporary
+
+SCENARIO
+
+1. Data lost after pod restarts
+> Cause : using container storage instead of volume
+> fix : Use PV + PVC
+
+> Pod is Ephemeral
+Pods:
+Can be deleted anytime
+Can restart on different node
+Do NOT guarantee survival
+
+Why Pods are NOT used directly in Production?
+> No Auto Healing -- Pod Crashes --> stays downs, No automatic recovery
+> No Scaling -- Cannot handle traffic spikes
+> No Updates -- No rolling updates, Need manual replacement
+> No Rollback -- Cannot revert to previous version
+
+soln : use controllers
+Use controllers:
+Deployment → stateless apps
+StatefulSet → stateful apps
+
+CMDS
+1. kubectl get pods 
+Shows: Status (Running, Pending, CrashLoopBackOff)
+
+2. kubectl describe pod <pod>
+Shows: Events (WHY something failed), Node info, Container details
+
+3. kubectl logs <pod>
+Shows: Application logs
+
+4. kubectl delete pod <pod>
+Used for: Restarting Pod manually
+
+A Pod goes through phases like Pending, Running, and Failed. It is scheduled by the Kubernetes scheduler and executed by the kubelet on a node. Pods are ephemeral and can fail due to issues like resource constraints, image pull errors, or application crashes. These issues are diagnosed using kubectl logs and describe commands.
+
+Pod is temporary
+Node runs it
+Kubelet manages it
+Deployment replaces it
