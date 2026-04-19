@@ -1,0 +1,246 @@
+WHY INGRESS EXISTS?
+
+>> Imagine you have 5 services:
+/api --> backend
+/auth --> auth service
+/ --> frontend
+
+>> Without Ingress
+you will need : 
+5 LoadBalancers 
+5 public IPs 
+Expensive + messy 
+
+>> with Ingress
+
+User → ONE LoadBalancer → Ingress → Multiple Services
+Single entry point for all apps
+
+>> Ingress is a Kubernetes API object that defines rules for routing external HTTP/HTTPS traffic to internal services.
+
+>> Ingress does NOT handle traffic itself
+>> It only defines rules
+
+>> Make your HTTP (or HTTPS) network service available using a protocol-aware configuration mechanism, that understands web concepts like URIs, hostnames, paths, and more. The Ingress concept lets you map traffic to different backends based on rules you define via the Kubernetes API.
+
+>> Ingress exposes HTTP and HTTPS routes from outside the cluster to services within the cluster. Traffic routing is controlled by rules defines on the Ingress resources.
+
+![alt text](ingress.svg)
+
+>> You must have an Ingress controller to satisfy an Ingress
+
+INGRESS CONTROLLER
+
+>> Ingress Controller is the actual component that reads Ingress rules and routes traffic accordingly.
+
+Ingress = rule book 
+Ingress Controller = traffic police 
+
+>> Popular Ingress Controllers
+NGINX Ingress Controller
+Traefik
+HAProxy
+
+HOW INGRESS WORKS?
+
+User → LoadBalancer → Ingress Controller → Service → Pod
+
+User hits domain (example.com)
+LoadBalancer forwards request
+Ingress Controller reads rules set by the Ingress
+Routes to correct Service
+Service sends to Pod
+
+YAML FILE
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+   - host: example.com
+     http:
+       paths:
+       - path: /api
+         pathType: Prefix
+         backend:
+           service:
+             name: api-service
+             port: 
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80
+
+Requests:
+example.com/api → api-service
+example.com/ → frontend-service
+
+TYPES OF ROUTING based on HTTP request details:
+
+1. Path Based Routing
+> Routing based on URL path
+example.com/api → backend
+example.com/ → frontend
+
+When a request comes, 
+Ingress Controller checks:
+Path = /api
+Matches rule → routes to backend service
+
+2. Host Based Routing
+> Routing based on domain name
+api.example.com → backend
+app.example.com → frontend
+
+TLS/HTTPS
+Transport Layer Security
+spec:
+  tls:
+  - hosts:
+    - example.com
+    secretName: tls-secret
+
+>TLS secret contains:
+SSL certificate
+Private key
+
+> Real Benefit
+Secure communication
+HTTPS termination at Ingress
+
+> Why TLS is Needed
+
+Without TLS:
+HTTP → plain text → insecure 
+
+With TLS:
+HTTPS → encrypted → secure 
+
+> TLS Flow
+User (HTTPS)
+   ↓
+Ingress Controller (decrypts TLS)
+   ↓
+Service (HTTP)
+   ↓
+Pod
+
+> TLS ends at Ingress, not at the Pod
+
+>What is tls-secret?
+A Kubernetes Secret containing:
+Certificate (tls.crt)
+Private key (tls.key)
+
+>> Why Ingress is Powerful?
+
+1. Single Entry Point
+
+Without Ingress :
+5 services → 5 LoadBalancers → 5 IPs 
+With Ingress :
+1 LoadBalancer → routes everything 
+
+2. Cost Efficient
+Cloud LoadBalancers cost money
+Without Ingress → expensive
+With Ingress → one LB only
+
+3. Centralized Routing
+All routing defined in one place
+Benefits: Easier debugging and updates
+
+4. SSL Termination
+No need to manage SSL in each service
+
+
+INGRESS VS LOADBALANCER
+
+Feature	LoadBalancer	Ingress
+Level	L4 (TCP)	L7 (HTTP/HTTPS)
+Routing	Basic	Advanced
+Cost	High	Low
+Entry Points	Multiple	Single
+
+Ingress works at Layer 7 (Application Layer)
+LoadBalancer works at Layer 4 (Transport Layer)
+
+SCENARIOS
+
+1. Ingress not working
+>> causes: No Ingress Controller installed and wrong rules
+>> Debug:
+kubectl get pods -n ingress-nginx
+kubectl describe ingress <name>
+
+2. 404 Not Found
+>> Means Rules not matching
+>> Fix : Check path/host config
+
+3. Service Not Reachable
+>> Cause : Backend service wrong
+> port mismatch
+
+4. TLS not working
+> causes : wrong secret
+> certicate missing
+
+5. DNS not resolving
+> cause: Domain not mapped to LB IP
+
+CMDS
+
+kubectl get ingress
+kubectl describe ingress <name>
+kubectl get svc
+kubectl get pods -n ingress-nginx
+
+
+PRODUCTION ARCHITECTURE
+
+User
+  ↓
+DNS (example.com)
+  ↓
+LoadBalancer
+  ↓
+Ingress Controller
+  ↓
+Service
+  ↓
+Pods
+
+
+What is Ingress?
+Ingress is a Kubernetes resource that defines rules for routing external HTTP/HTTPS traffic to services inside the cluster.
+
+What is Ingress Controller?
+It is the component that implements Ingress rules and handles the actual traffic routing.
+
+Why do we need Ingress?
+To provide a single entry point, reduce cost, and enable advanced routing and TLS termination.
+
+Service → gives access  
+Ingress → controls how traffic flows  
+Ingress Controller → executes routing  
+
+>> TLS Termination is the process where encrypted HTTPS traffic is decrypted at a specific point (like an Ingress Controller or Load Balancer) before being forwarded to backend services.
+
+User (HTTPS request 🔒)
+        ↓
+Ingress Controller (decrypts TLS 🔓)
+        ↓
+Service (HTTP)
+        ↓
+Pod
+
+User sends HTTPS request
+Ingress receives encrypted traffic
+Ingress uses SSL certificate to decrypt
+Forwards plain HTTP to backend
