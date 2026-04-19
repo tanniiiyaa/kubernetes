@@ -1,0 +1,215 @@
+Stateless (Deployment) → “I don’t care who I am”
+Stateful (StatefulSet) → “My identity matters”
+
+STATEFULSETS
+>> A StatefulSet is a Kubernetes controller used to manage stateful applications that require stable identity, ordered deployment, and persistent storage.
+
+>> A StatefulSet runs a group of Pods, and maintains a sticky identity for each of those Pods. This is useful for managing applications that need persistent storage or a stable, unique network identity.
+
+>>StatefulSet is the workload API object used to manage stateful applications.
+
+>> Like a Deployment, a StatefulSet manages Pods that are based on an identical container spec. Unlike a Deployment, a StatefulSet maintains a sticky identity for each of its Pods
+
+>> A Pod becomes stateful in Kubernetes by using a StatefulSet controller instead of a Deployment. A StatefulSet assigns each pod a sticky, unique identity (ordinal index, network ID) and associates it with stable, persistent storage that survives pod restarts or rescheduling
+
+>> Used For
+Databases (MySQL, MongoDB)
+Kafka
+Zookeeper
+Redis (cluster mode)
+
+>> Key Features
+
+1. Stable Pod Identity
+Pods get fixed names:
+mysql-0
+mysql-1
+mysql-2
+Even after restart:
+Name remains SAME
+Identity preserved
+
+2. Stable Network Identity
+Each Pod gets a DNS name
+mysql-0.mysql-service
+mysql-1.mysql-service
+Important for Cluster Communication
+
+3. Persistent Storage
+Each Pod gets its own volume
+mysql-0 → PVC-0
+mysql-1 → PVC-1
+
+4. Ordered Deployment
+Pods are created in sequence
+mysql-0 → mysql-1 → mysql-2
+
+5. Ordered Deletion
+mysql-2 → mysql-1 → mysql-0
+
+YAML FILE
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+spec:
+  serviceName: "mysql-service"  
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:                
+      containers:
+      - name: mysql
+        image: mysql:8
+        ports:
+        - containerPort: 3306
+
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+
+Explanation
+
+spec: defines the desired state
+
+serviceName: 
+refers to Headless Service because statefulset needs Stable DNS per pod
+what it creates ---
+mysql-0.mysql-service
+mysql-1.mysql-service
+mysql-2.mysql-service 
+each pod gets a unique DNS
+
+replicas -- 3 Mysql pods
+
+In selector, statefulset manages pods with app: mysql
+it must match template labels
+
+template--- defines how each pod is created
+
+>> volumeClaimTemplates: 
+this is what makes statefulset stateful
+creates a Persistent Volume Claim (PVC) per pod
+result:
+mysql-0 → mysql-data-mysql-0
+mysql-1 → mysql-data-mysql-1
+mysql-2 → mysql-data-mysql-2
+so each pod gets its own storage and data is not shared
+
+>> metadata.name:
+ base name for PVC
+
+>> accessMode:
+accessModes: ["ReadWriteOnce"]
+Volume can ve mounted by ONE node at a time
+
+>> storage request
+resources:
+  requests:
+    storage: 1Gi
+
+each pod gets 1GB storage
+
+[kubectl apply -f statefulSet.yml]
+
+Headless Service used for DNS
+StatefulSet created
+Pods created in order:
+mysql-0 → mysql-1 → mysql-2
+Each Pod gets:
+Unique name
+Unique storage
+Unique DNS
+
+HEADLESS SERVICE
+
+>> A Headless Service is a K8S service that does not have a Cluster IP, and instead returns the actual Pod IPs directly
+
+>> Client → directly gets Pod IPs → connects to specific Pod
+
+>> No LB, No Virtual IPs
+
+HOW TO CREATE?
+
+ apiVersion: v1
+ kind: Service
+ metadata:
+  name: mysql-service
+spec:
+  clusterIP: None  # this makes it Headless
+  selector:
+    app: mysql
+  ports: 
+  - port: 3306
+
+clusterIP: None  --- Disables ClusterIp and LB
+
+StatefulSet → Pods (ordered)
+           → PVC per Pod
+           → Headless Service for DNS
+
+
+STATEFULSET LIFECYCLE
+
+1. Creation
+mysql-0 → mysql-1 → mysql-2
+
+2. Scaling Up
+add mysql-3
+
+3. Scaling Down
+delete mysql-3 first
+
+4. Restart
+Pod restarts with same name and same storage
+
+STATELESS APPLICATIONS
+
+>> Do not store any sessions or state info about the client. Each request from the client is treated as an independent transaction that the server can handle without any knowledge of previous interactions.
+
+>> do not store data locally and do not depend on Pod identity
+
+>> Examples:
+Web apps, APIs, Microservices
+
+>> Characteristics
+
+1. Easy to scale because they dont store session data
+2. Failure in one instance dont affect others.
+3. Deploy multiple instances behind a LB without worrying about the data
+4. No Identity and has random names
+5. No storage guarantee Pod restarts---> data lost
+6. No order-- Pods are created randomly
+
+>> Stateless applications are inherently more scalable due to their ability to scale horizontally by adding more instances.
+>> making them inherently more scalable and suitable for handling varying workloads and traffic patterns.
+
+| Feature      | StatefulSet   | Deployment |
+| ------------ | ------------- | ---------- |
+| Use case     | Databases     | Web apps   |
+| Pod identity | Stable        | Random     |
+| Storage      | Persistent    | Ephemeral  |
+| Scaling      | Ordered       | Parallel   |
+| DNS          | Stable        | Dynamic    |
+| Restart      | Same identity | New Pod    |
+| Complexity   | High          | Low        |
+
+
+Deployment → flexible, replaceable Pods
+StatefulSet → fixed identity, persistent Pods
+
+Production Insight
+Frontend/API → Deployment (stateless)
+Database → StatefulSet (stateful)
