@@ -1,0 +1,268 @@
+WHY PV & PVC EXISTS?
+
+>> Problem with Pods
+Pods are emphemeral that is temporary
+When pod dies --> data is lost
+Pod deleted → container gone → data gone 
+
+>> Solution is Persistent Storage
+Data should live outside the Pod Lifecycle
+
+Pod → PVC → PV → Actual Storage (Disk / Cloud)
+
+PERSISTENT VOLUME (PV)
+
+>> A PersistentVolume (PV) is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using Storage Classes.
+
+>> PVs are resources in the cluster.
+
+>> PV is an actual storage in the cluster (like a disk)
+
+>> Think of it as AWS EBS, GCP Persistent Disk, Azure Disk, NFS, Local Disk
+
+PERSISTENT CLAIM VOLUME (PVC)
+
+>> A PersistentVolumeClaim (PVC) is a request for storage by a user. It is similar to a Pod. Pods consume node resources and PVCs consume PV resources. 
+
+>> A PVC is a request for storage made by a Pod
+>> think of it as "I need 1GB storage"
+
+HOW PV AND PVC WORK TOGETHER
+
+1. Admin creates PV (storage available)
+2. Developer creates PVC (request)
+3. K8S (control plane/ Persistent controller) matches PVC-->PV
+4. Pod uses PVC
+
+PVC request → Kubernetes binds → PV
+
+
+PV & PVC LIFECYCLE
+
+1. Provisioning (How storage is created)
+
+>> Static Provisioning (Manual way)
+Admin creates storage in advance
+Admin creates multiple PVs
+example :
+10Gi PV, 50Gi PV, 100Gi PV
+Users (developers) can later claim them
+
+>> Dynamic Provisioning (Automatic Way)
+Happens when there is no matching PV exists
+Instead of faiing, k8s says: "okay, ill create a storage for you"
+How??
+PVC must mention a StorageClass
+That StorageClass has a Provisioner (like AWS EBS)
+the administrator must have created and configured that class for dynamic provisioning to occur.
+
+>> to enable dynamic storage provisioning bases on storage class, the cluster admin needs to enable"DefaultStorageClass"admission controller on the API server.
+
+Control Plane sees PVC
+No matching PV found
+Calls provisioner
+New PV is created automatically
+
+***Claims that request class "" disable dynamic provisioning***
+
+If PVC says: storageClassName: ""
+Kubernetes will NOT create storage automatically
+Only existing PVs will be considered
+
+>> DefaultStorageClass admission controller
+
+>> Binding
+What actually happens --- 
+User creates PVC
+Control Plane detects it
+It tries to find a matching PV
+
+>> Matching Rules?
++ PV size >= PVC request
++ Access modes match
++ StorageClass match
+
+>> Binding Happens---
+Once matched : PV ↔ PVC are linked (bound)
++ One-to-One mapping
++ Exclusive
+
+If PV was created just for that PVC, it will always bind to that same PVC
+
+>> If No matching PV exists
+PVC stays in : Pending state
+until a matching PV is created
+
+
+STEPS
+
+1. Creation of PV
+PV is created either:
++ Statically by admin
++ Dynamically via StorageClass
+PV represents the actual storage (disk, EBS,NFS)
+
+2. Creation of PVC
+User creates PVC specifying
++ Required storage (eg 10Gi)
++ Access mode
++ StorageClass
+PVC is only a request, not actual storage
+
+3. Binding of PVC to PV
+K8S Control Plane (PV Controller)
++ Watches for new PVCs
++ Searches for matching PV
+
+Matching Criteria:
+PV capacity ≥ PVC request
+Access modes match
+StorageClass matches
+
+>> If Match found : PVC is bound to PV, Binding is one-to-one
+
+>> If No Match  : PVC remains in Pending State
+If StorageClass exists → Dynamic provisioning happens
+
+4. Internal Mapping
+After Binding
+PVC (my-pvc) → PV (actual storage)
+This mapping is stored internally using:
+claimRef in PV
+
+5. Pod Definition (Using PVC)
+Pod does not use PV directly
+Pod refers PVC in yaml
+volumes:
+- name: storage
+  persistentVolumeClaim:
+    claimName: my-pvc
+
+6. Pod Creation and Scheduling
+Pod is created and scheduled to a Node
+K8s checks does PVC exits and Is PVC in Bound State?
+
+7. Kubelet Mount Process (Actual Execution)
+On the Node:
+Kubelet performs:
+Reads Pod spec
+Identifies PVC
+Finds bound PV
+Contacts storage backend
+Attaches disk (if needed)
+Mounts volume to node
+Mounts inside container
+
+8. Volume inside Container 
+volume is mounted at
+mountpath (..../data)
+Application accesses storage via this path
+
+Pod → uses PVC only
+PVC → linked to one PV
+Binding is exclusive (1:1)
+PV is cluster-level, PVC is namespace-level
+
+1. PV created (static/dynamic)
+2. PVC created (user request)
+3. Control Plane binds PVC ↔ PV
+4. Pod references PVC
+5. Kubernetes resolves PVC → PV
+6. Kubelet mounts storage
+7. Container uses storage via mountPath
+
+
+PV YAML FILE
+ 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv1
+spec:  
+  capacity:
+    storage: 5Gi
+  accessModes:
+   - ReadWriteOnce
+  hostPath:
+    path: /data
+
+accessModes
+ReadWriteOnce (RWO) One node can mount
+ReadOnlyMany (ROX)
+ReadWriteMany (RWX)  Multiple nodes can mount
+
+hostPath → only for testing
+Production → use cloud storage
+
+PVC YAML FILE
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc
+spec:
+  accessmode: 
+   - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+POD ---> PVC
+
+volumes:
+ - name : storage
+   persistentVolumeClaim:
+     claimName: pvc
+
+Mount inside container
+
+volumeMounts:
+ - mountPath: /data
+   name: storage
+
+/data inside container → actual disk storage
+
+STORAGE CLASS
+
+>> k8s resource that defines how storage should be dynamically created.
+
+>> StorageClass = Template/Blueprint for creating PersistentVolumes dynamically
+
+Before StorageClass:
+Admin had to manually create PVs 
+Not scalable 
+
+After StorageClass:
+Storage is created automatically when PVC is requested 
+Fully automated system 
+
+PVC → StorageClass → Provisioner → PV → Pod
+
+| Feature    | PV             | PVC              |
+| ---------- | -------------- | ---------------- |
+| Role       | Storage        | Request          |
+| Created by | Admin / System | User             |
+| Lifecycle  | Independent    | Bound to Pod     |
+| Example    | Disk           | Request for disk |
+
+
+RECLAIM POLICY
+
+>> Reclaim Policy defines what happens to a PersistentVolume (PV) after its PersistentVolumeClaim (PVC) is deleted.
+
+>>Reclaim Policy = What to do with storage after user releases it
+
+>> types of Reclaim Policies
+
+1. Delete  PVC deleted → PV deleted → Disk deleted
+2. Retain  PVC deleted → PV stays → Data stays → Manual action needed
+3. Recycle   wipe (deprecated)
+
+reclaimPolicy: Retain
+
+PV = storage  
+PVC = request  
+Pod = uses storage via PVC  
+
+No PVC → No persistence  
+PVC → Data survives Pod  
