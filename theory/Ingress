@@ -244,3 +244,5 @@ User sends HTTPS request
 Ingress receives encrypted traffic
 Ingress uses SSL certificate to decrypt
 Forwards plain HTTP to backend
+
+>> Ingress is not object owned by k8s
